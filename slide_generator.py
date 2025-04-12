@@ -1,5 +1,3 @@
-# slide_generator.py
-
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
 import os
 import random
@@ -22,74 +20,55 @@ def get_news_image(query):
 
 def create_gradient_background():
     """Create a professional gradient background"""
-    img = Image.new("RGB", (1080, 1080))
+    img = Image.new('RGB', (1080, 1080))
     draw = ImageDraw.Draw(img)
     
-    colors = [
-        [(20, 30, 48), (36, 59, 85)],      # Deep Blue
-        [(48, 25, 52), (95, 44, 130)],     # Royal Purple
-        [(20, 36, 50), (71, 120, 140)],    # Ocean Blue
-        [(40, 30, 50), (70, 50, 90)]       # Night Purple
+    # Professional color schemes
+    color_schemes = [
+        [(53, 92, 125), (108, 91, 123), (192, 108, 132)],  # Professional blue-purple
+        [(40, 82, 122), (69, 123, 157), (137, 181, 175)],  # Business blue
+        [(67, 76, 94), (100, 111, 135), (154, 140, 152)],  # Corporate gray
+        [(44, 62, 80), (52, 73, 94), (93, 109, 126)]       # Dark professional
     ]
     
-    color1, color2 = random.choice(colors)
-    
-    for y in range(1080):
-        r = int(color1[0] + (color2[0] - color1[0]) * y / 1080)
-        g = int(color1[1] + (color2[1] - color1[1]) * y / 1080)
-        b = int(color1[2] + (color2[2] - color1[2]) * y / 1080)
-        draw.line([(0, y), (1080, y)], fill=(r, g, b))
+    colors = random.choice(color_schemes)
+    for i in range(1080):
+        # Create smooth gradient
+        r = int(colors[0][0] + (i/1080) * (colors[-1][0] - colors[0][0]))
+        g = int(colors[0][1] + (i/1080) * (colors[-1][1] - colors[0][1]))
+        b = int(colors[0][2] + (i/1080) * (colors[-1][2] - colors[0][2]))
+        draw.line([(i, 0), (i, 1080)], fill=(r, g, b))
     
     return img
 
 def get_font(name, size):
     """Get font with fallbacks"""
-    try:
-        font_paths = {
-            'title': "C:\\Windows\\Fonts\\SEGOEUI.TTF",
-            'bold': "C:\\Windows\\Fonts\\SEGOEUIB.TTF",
-            'number': "C:\\Windows\\Fonts\\SEGUIBL.TTF"
-        }
-        return ImageFont.truetype(font_paths.get(name, font_paths['title']), size)
-    except:
-        return ImageFont.load_default()
+    font_path = os.path.join("fonts", name)
+    if os.path.exists(font_path):
+        return ImageFont.truetype(font_path, size)
+    return ImageFont.load_default()
 
 def get_design_variant(index):
     """Get design variant based on slide index"""
     variants = [
         {
-            'overlay_color': (0, 0, 0, 180),  # Dark overlay
-            'headline_color': (255, 255, 255),  # White
-            'link_color': (29, 161, 242),  # Twitter Blue
-            'accent_color': (200, 200, 200)  # Light Gray
+            'title_size': 60,
+            'desc_size': 36,
+            'title_pos': (540, 200),
+            'desc_pos': (540, 600),
+            'max_title_width': 900,
+            'max_desc_width': 800
         },
         {
-            'overlay_color': (20, 23, 26, 200),  # Dark blue overlay
-            'headline_color': (255, 255, 255),  # White
-            'link_color': (255, 122, 0),  # Orange
-            'accent_color': (180, 180, 180)  # Light Gray
-        },
-        {
-            'overlay_color': (26, 20, 26, 200),  # Dark purple overlay
-            'headline_color': (255, 255, 255),  # White
-            'link_color': (0, 255, 153),  # Mint Green
-            'accent_color': (180, 180, 180)  # Light Gray
-        },
-        {
-            'overlay_color': (26, 20, 20, 200),  # Dark red overlay
-            'headline_color': (255, 255, 255),  # White
-            'link_color': (255, 204, 0),  # Gold
-            'accent_color': (180, 180, 180)  # Light Gray
+            'title_size': 55,
+            'desc_size': 32,
+            'title_pos': (540, 250),
+            'desc_pos': (540, 650),
+            'max_title_width': 850,
+            'max_desc_width': 750
         }
     ]
-    return variants[index % len(variants)]
-
-def add_overlay(img, color):
-    """Add a semi-transparent overlay"""
-    overlay = Image.new('RGBA', img.size, color)
-    img_rgba = img.convert('RGBA')
-    composite = Image.alpha_composite(img_rgba, overlay)
-    return composite.convert('RGB')  # Convert back to RGB for JPEG saving
+    return random.choice(variants)
 
 def wrap_text(text, font, max_width, max_lines=4):
     """Wrap text to fit width and line limit"""
@@ -100,177 +79,100 @@ def wrap_text(text, font, max_width, max_lines=4):
     for word in words:
         # Try adding the word
         test_line = current_line + [word]
-        test_width = font.getlength(' '.join(test_line))
+        width = font.getlength(' '.join(test_line))
         
-        if test_width <= max_width:
+        if width <= max_width:
             current_line = test_line
         else:
             if current_line:
                 lines.append(' '.join(current_line))
-                if len(lines) >= max_lines:
-                    # Add ellipsis to last line if truncated
-                    lines[-1] = lines[-1].rstrip() + "..."
-                    break
                 current_line = [word]
+                if len(lines) >= max_lines:
+                    break
             else:
-                # Word is too long, split it
+                # Word is too long, force split
                 lines.append(word)
                 if len(lines) >= max_lines:
                     break
-                current_line = []
     
     if current_line and len(lines) < max_lines:
         lines.append(' '.join(current_line))
     
-    return lines
-
-def shorten_url(url):
-    """Shorten URL to fit in the slide"""
-    if len(url) > 40:
-        return url[:37] + "..."
-    return url
-
-def get_search_terms(title, category):
-    """Get better search terms from news title and category"""
-    # Remove common words that don't help in image search
-    common_words = {'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
+    # If we have too many lines, add ellipsis
+    if len(lines) > max_lines:
+        lines = lines[:max_lines-1] + [lines[-1] + '...']
     
-    # Extract key terms from title
-    words = title.lower().split()
-    key_terms = [word for word in words if word not in common_words]
-    
-    # Get the most relevant 2-3 terms
-    if len(key_terms) > 3:
-        # For longer titles, take first and last important words
-        search_terms = key_terms[:2] + [key_terms[-1]]
-    else:
-        search_terms = key_terms
-    
-    # Add category-specific terms
-    category_terms = {
-        'sports': ['sports', 'game', 'match'],
-        'business': ['business', 'finance', 'corporate'],
-        'technology': ['tech', 'technology', 'digital'],
-        'entertainment': ['entertainment', 'movie', 'cinema'],
-        'india': ['india', 'indian'],
-        'world': ['world', 'global', 'international']
-    }
-    
-    # Add relevant category term
-    if category.lower() in category_terms:
-        search_terms.append(category_terms[category.lower()][0])
-    
-    # Clean and join terms
-    clean_terms = []
-    for term in search_terms:
-        # Remove special characters
-        term = ''.join(c for c in term if c.isalnum() or c.isspace())
-        if term and len(term) > 2:  # Only keep meaningful terms
-            clean_terms.append(term)
-    
-    # Create search query
-    search_query = '+'.join(clean_terms[:3])  # Limit to 3 terms for best results
-    print(f"🔍 Image search terms: {search_query}")
-    return search_query
+    return '\n'.join(lines)
 
 def generate_slide(news_item, index, total_slides):
     """Generate a professional-looking slide"""
+    # Get design variant
+    design = get_design_variant(index)
+    
+    # Create base image
+    img = create_gradient_background()
+    
+    # Try to get relevant image
+    search_terms = news_item['title'].split()[:3]  # Use first 3 words
     try:
-        # Create base image with news-related background
-        if index == 0:
-            # Title slide with news-related background
-            base_img = get_news_image("newspaper+headlines+press")
-            design = {
-                'overlay_color': (0, 0, 0, 180),
-                'headline_color': (255, 255, 255),
-                'link_color': (29, 161, 242),
-                'accent_color': (200, 200, 200)
-            }
-        else:
-            # Get relevant image for the headline
-            search_terms = get_search_terms(news_item['title'], news_item['category'])
-            base_img = get_news_image(search_terms)
-            design = get_design_variant(index)
-        
-        # Ensure correct size and convert to RGB
-        base_img = ImageOps.fit(base_img, (1080, 1080))
-        
-        # Add dark overlay for readability
-        img = add_overlay(base_img, design['overlay_color'])
-        draw = ImageDraw.Draw(img)
-        
-        if index == 0:
-            # Title slide
-            title_font = get_font('bold', 100)
-            subtitle_font = get_font('title', 50)
-            date_font = get_font('title', 40)
-            
-            # Main title
-            draw.text((540, 400), "TODAY'S", font=title_font, fill=design['headline_color'], anchor="mm")
-            draw.text((540, 500), "HEADLINES", font=title_font, fill=design['headline_color'], anchor="mm")
-            
-            # Date
-            current_date = datetime.now().strftime("%d %B %Y")
-            draw.text((540, 600), current_date, font=date_font, fill=design['accent_color'], anchor="mm")
-            
-            # Bottom text
-            draw.text((540, 950), "Swipe right →", font=subtitle_font, fill=design['accent_color'], anchor="mm")
-        else:
-            # News slides
-            number_font = get_font('number', 120)
-            headline_font = get_font('bold', 60)
-            note_font = get_font('title', 35)
-            
-            # Slide number
-            number_text = f"{index}/{total_slides-1}"
-            draw.text((100, 100), number_text, font=number_font, fill=design['headline_color'])
-            
-            # Headline - limit to 4 lines
-            lines = wrap_text(news_item['title'], headline_font, 900, max_lines=4)
-            y = 380  # Start slightly higher for 4 lines
-            line_height = 70
-            for line in lines:
-                draw.text((540, y), line, font=headline_font, fill=design['headline_color'], anchor="mm")
-                y += line_height
-            
-            # Note at bottom
-            note_text = "Find details in caption ↓"
-            draw.text((540, 950), note_text, font=note_font, fill=design['accent_color'], anchor="mm")
-        
-        return img
-    except Exception as e:
-        print(f"Error generating slide {index}: {e}")
-        # Fallback to simple gradient background
-        return create_gradient_background()
+        news_img = get_news_image(' '.join(search_terms))
+        # Blend with gradient
+        img = Image.blend(img, news_img, 0.3)
+    except:
+        pass  # Keep gradient if image fails
+    
+    # Add overlay for better text visibility
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 100))
+    img = Image.alpha_composite(img.convert('RGBA'), overlay)
+    
+    # Create draw object
+    draw = ImageDraw.Draw(img)
+    
+    # Draw title
+    title_font = get_font('DejaVuSans-Bold.ttf', design['title_size'])
+    title_text = wrap_text(news_item['title'], title_font, design['max_title_width'], 3)
+    title_bbox = draw.textbbox(design['title_pos'], title_text, font=title_font, anchor='mm')
+    draw.text(design['title_pos'], title_text, font=title_font, fill='white', anchor='mm', align='center')
+    
+    # Draw description if available
+    if 'description' in news_item and news_item['description']:
+        desc_font = get_font('DejaVuSans.ttf', design['desc_size'])
+        desc_text = wrap_text(news_item['description'], desc_font, design['max_desc_width'], 4)
+        draw.text(design['desc_pos'], desc_text, font=desc_font, fill='white', anchor='mm', align='center')
+    
+    # Add slide number
+    number_font = get_font('DejaVuSans.ttf', 24)
+    draw.text((1020, 1040), f'{index}/{total_slides}', font=number_font, fill='white', anchor='mm')
+    
+    # Convert back to RGB
+    img = img.convert('RGB')
+    
+    return img
 
 def generate_all_slides(news_items):
-    """Generate all slides with proper numbering"""
-    folder = "slides"
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    
-    # Clean old slides
-    for filename in os.listdir(folder):
-        if filename.endswith(".jpg"):
-            os.remove(os.path.join(folder, filename))
-    
-    total_slides = len(news_items) + 1  # Including title slide
-    
+    """Generate all slides for the news items"""
     try:
-        # Generate title slide
-        print("🎨 Generating title slide...")
-        title_slide = generate_slide({"title": "Title"}, 0, total_slides)
-        title_slide.save(os.path.join(folder, "01_title.jpg"), 
-                        format='JPEG', quality=95, optimize=True)
+        # Create slides directory if not exists
+        os.makedirs('slides', exist_ok=True)
         
-        # Generate news slides
-        for i, news_item in enumerate(news_items, 1):
-            print(f"🎨 Generating slide {i}/{len(news_items)}...")
-            slide_num = str(i + 1).zfill(2)  # Ensures proper sorting: 01, 02, etc.
-            img = generate_slide(news_item, i, total_slides)
-            img.save(os.path.join(folder, f"{slide_num}_news.jpg"), 
-                    format='JPEG', quality=95, optimize=True)
-            print(f"✅ Generated slide {i}: {news_item['title'][:50]}...")
+        # Clear existing slides
+        for f in os.listdir('slides'):
+            if f.endswith('.jpg'):
+                os.remove(os.path.join('slides', f))
+        
+        # Generate slides
+        slide_paths = []
+        total_slides = len(news_items)
+        
+        for i, news in enumerate(news_items, 1):
+            slide = generate_slide(news, i, total_slides)
+            path = os.path.join('slides', f'slide_{i:02d}.jpg')
+            slide.save(path, 'JPEG', quality=95)
+            slide_paths.append(path)
+            print(f"✅ Generated slide {i}/{total_slides}")
+        
+        return slide_paths
+        
     except Exception as e:
         print(f"❌ Error generating slides: {e}")
-        raise  # Re-raise the exception for proper error handling
+        return []

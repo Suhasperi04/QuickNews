@@ -29,6 +29,11 @@ COPY . .
 # Create directories for slides and links
 RUN mkdir -p slides links
 
+# Create fonts directory and copy DejaVu fonts
+RUN mkdir -p fonts && \
+    cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/fonts/ && \
+    cp /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf /app/fonts/
+
 # Expose the port
 EXPOSE 8080
 
