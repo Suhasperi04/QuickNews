@@ -1,5 +1,6 @@
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 from news_fetcher import get_top_headlines
 from slide_generator import generate_all_slides
