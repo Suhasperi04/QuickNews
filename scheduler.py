@@ -1,148 +1,46 @@
-from datetime import datetime, timedelta
+from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from news_fetcher import get_top_headlines, NewsHistory
+from datetime import datetime
+from news_fetcher import get_top_headlines
 from slide_generator import generate_all_slides
 from insta_poster import post_carousel
 import os
-from flask import Flask
 
 app = Flask(__name__)
 
 def clear_history():
     """Clear news history daily at midnight"""
     try:
-        if os.path.exists("news_history.json"):
-            os.remove("news_history.json")
-        print("🗑️ Cleared news history")
-        
-        # Create empty history file
-        history = NewsHistory()
-        history.save()
+        if os.path.exists('news_history.json'):
+            os.remove('news_history.json')
+            print("🗑️ Cleared news history")
     except Exception as e:
         print(f"❌ Error clearing history: {e}")
 
 def post_news_job():
+    """Post news to Instagram"""
     try:
-        print("\n" + "="*50)
-        print(f"📅 Starting post job at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("="*50)
-        
+        # Get headlines
         headlines = get_top_headlines()
         if not headlines:
-            print("❌ No headlines available. Skipping post.")
+            print("❌ No headlines to post")
             return
             
-        print(f"📰 Got {len(headlines)} headlines")
-        print("\n🎨 Generating slides...")
-        generate_all_slides(headlines)
-        
-        print("\n📤 Posting to Instagram...")
-        post_carousel(headlines)
-        
-        # Update Linktree
-        update_linktree(headlines)
-        
-    except Exception as e:
-        print(f"❌ Post job failed: {e}")
-
-def update_linktree(headlines):
-    """Update Linktree HTML with today's news links"""
-    try:
-        date_str = datetime.now().strftime('%Y-%m-%d')
-        time_str = datetime.now().strftime('%I:%M %p')
-        
-        # Create links directory if not exists
-        os.makedirs("links", exist_ok=True)
-        
-        # Create daily links file
-        links_file = f"links/{date_str}.html"
-        
-        # Read existing content or create new
-        links_content = {}
-        if os.path.exists(links_file):
-            with open(links_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                # Parse existing content (basic parsing)
-                for line in content.split('\n'):
-                    if ' | ' in line:
-                        t, urls = line.split(' | ', 1)
-                        links_content[t] = urls
-        
-        # Add new links
-        links_content[time_str] = '\n'.join([
-            f'<p><a href="{news["url"]}" target="_blank">{news["title"]}</a></p>'
-            for news in headlines
-        ])
-        
-        # Generate HTML
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>News Links - {date_str}</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {{
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }}
-        h1, h2 {{
-            color: #333;
-            border-bottom: 2px solid #ddd;
-            padding-bottom: 10px;
-        }}
-        .time-block {{
-            background: white;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }}
-        a {{
-            color: #2196F3;
-            text-decoration: none;
-            line-height: 1.6;
-        }}
-        a:hover {{
-            text-decoration: underline;
-        }}
-        .time {{
-            font-weight: bold;
-            color: #666;
-        }}
-    </style>
-</head>
-<body>
-    <h1>News Links - {date_str}</h1>
-"""
-        
-        # Add each time block
-        for time, links in sorted(links_content.items(), reverse=True):
-            html += f"""
-    <div class="time-block">
-        <h2 class="time">{time}</h2>
-        {links}
-    </div>"""
-        
-        html += """
-</body>
-</html>"""
-        
-        # Save file
-        with open(links_file, 'w', encoding='utf-8') as f:
-            f.write(html)
+        # Generate slides
+        slides = generate_all_slides(headlines)
+        if not slides:
+            print("❌ No slides generated")
+            return
             
-        print(f"✅ Updated Linktree for {date_str} at {time_str}")
+        # Post to Instagram
+        post_carousel(slides, headlines)
         
     except Exception as e:
-        print(f"❌ Error updating Linktree: {e}")
+        print(f"❌ Error in post_news_job: {e}")
 
 @app.route('/health')
 def health_check():
+    """Health check endpoint"""
     scheduler = BackgroundScheduler()
     scheduler.start()
     return {
@@ -154,31 +52,29 @@ def health_check():
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
     
-    # Schedule posts at fixed times (9 AM, 1 PM, 5 PM, 9 PM)
+    # Schedule posts at fixed times (5 AM, 6 AM, 7 AM, 8 AM)
     scheduler.add_job(
         post_news_job,
-        CronTrigger(hour='4,5,7,8', minute='17'),
+        CronTrigger(hour='5,6,7,8', minute='4'),
         id='post_news'
     )
     
-    # Clear history daily at midnight
+    # Schedule daily history clear at midnight
     scheduler.add_job(
         clear_history,
         CronTrigger(hour=0, minute=0),
         id='clear_history'
     )
     
+    # Start the scheduler
     scheduler.start()
-    print("⏰ Scheduler started (posts at 9 AM, 1 PM, 5 PM, 9 PM)")
+    print("⏰ Scheduler started (posts at 5 AM, 6 AM, 7 AM, 8 AM)")
     
-    # Run first post immediately if within posting hours
-    current_hour = datetime.now().hour
-    if current_hour in [9, 13, 17, 21]:
-        print("📝 First post will start momentarily...")
-        post_news_job()
-    else:
+    # Get next post time
+    if scheduler.get_jobs():
         next_run = scheduler.get_job('post_news').next_run_time
         print(f"📅 Next post scheduled at: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
     
+    # Start Flask app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
