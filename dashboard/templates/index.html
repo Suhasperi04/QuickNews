@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Insta News Bot Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f3f4f6;
+      padding: 40px;
+      text-align: center;
+    }
+    h2 {
+      color: #2c3e50;
+    }
+    p {
+      font-size: 20px;
+      margin-bottom: 30px;
+    }
+    button {
+      font-size: 16px;
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .start {
+      background-color: #27ae60;
+      color: white;
+    }
+    .stop {
+      background-color: #c0392b;
+      color: white;
+    }
+    .logout {
+      background-color: #7f8c8d;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h2>📰 Insta News Bot Dashboard</h2>
+  <p>Status: <strong>{{ status }}</strong></p>
+
+  <form action="/start" method="get">
+    <button type="submit" class="start">✅ Start Posting</button>
+  </form>
+
+  <form action="/stop" method="get">
+    <button type="submit" class="stop">🛑 Stop Posting</button>
+  </form>
+
+  <form action="/logout" method="get">
+    <button type="submit" class="logout">🔓 Logout</button>
+  </form>
+</body>
+</html>

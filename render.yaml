@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: news-bot-worker
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: IG_USERNAME
+        sync: false
+      - key: IG_PASSWORD
+        sync: false
