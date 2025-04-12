@@ -80,6 +80,9 @@ def get_category(title):
 def get_top_headlines():
     """Fetch top headlines using NewsAPI"""
     api_key = os.getenv('NEWS_API_KEY')
+    if not api_key:
+        raise ValueError("NEWS_API_KEY environment variable is not set")
+
     url = 'https://newsapi.org/v2/top-headlines'
     
     params = {
@@ -97,9 +100,16 @@ def get_top_headlines():
         # Load existing history
         history_file = 'news_history.json'
         history = []
-        if os.path.exists(history_file):
-            with open(history_file, 'r') as f:
-                history = json.load(f)
+        try:
+            if os.path.exists(history_file):
+                with open(history_file, 'r') as f:
+                    history = json.load(f)
+                if not isinstance(history, list):
+                    print("Warning: Corrupted history file, starting fresh")
+                    history = []
+        except json.JSONDecodeError:
+            print("Warning: Corrupted history file, starting fresh")
+            history = []
         
         # Process articles
         processed_news = []

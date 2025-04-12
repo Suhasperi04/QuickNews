@@ -43,10 +43,20 @@ def create_gradient_background():
 
 def get_font(name, size):
     """Get font with fallbacks"""
-    font_path = os.path.join("fonts", name)
-    if os.path.exists(font_path):
-        return ImageFont.truetype(font_path, size)
-    return ImageFont.load_default()
+    try:
+        font_path = os.path.join("fonts", name)
+        if os.path.exists(font_path):
+            return ImageFont.truetype(font_path, size)
+        # Try system fonts as fallback
+        system_font = None
+        if os.name == 'nt':  # Windows
+            system_font = 'arial.ttf'
+        else:  # Unix-like
+            system_font = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        return ImageFont.truetype(system_font, size)
+    except Exception as e:
+        print(f"Warning: Could not load font {name}, using default. Error: {e}")
+        return ImageFont.load_default()
 
 def get_design_variant(index):
     """Get design variant based on slide index"""
@@ -116,10 +126,15 @@ def generate_slide(news_item, index, total_slides):
     search_terms = news_item['title'].split()[:3]  # Use first 3 words
     try:
         news_img = get_news_image(' '.join(search_terms))
+        # Ensure both images are in the same mode before blending
+        if news_img.mode != img.mode:
+            news_img = news_img.convert(img.mode)
+        # Resize news_img to match base image size
+        news_img = news_img.resize(img.size, Image.Resampling.LANCZOS)
         # Blend with gradient
         img = Image.blend(img, news_img, 0.3)
-    except:
-        pass  # Keep gradient if image fails
+    except Exception as e:
+        print(f"Warning: Could not blend image, using gradient. Error: {e}")
     
     # Add overlay for better text visibility
     overlay = Image.new('RGBA', img.size, (0, 0, 0, 100))

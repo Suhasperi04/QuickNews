@@ -6,6 +6,7 @@ from news_fetcher import get_top_headlines
 from slide_generator import generate_all_slides
 from insta_poster import post_carousel
 import os
+import atexit
 
 app = Flask(__name__)
 
@@ -42,16 +43,37 @@ def post_news_job():
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
-    scheduler = BackgroundScheduler()
-    scheduler.start()
-    return {
-        'status': 'healthy',
-        'last_check': datetime.now().isoformat(),
-        'next_post': scheduler.get_jobs()[0].next_run_time.isoformat() if scheduler.get_jobs() else None
-    }
+    try:
+        jobs = scheduler.get_jobs()
+        next_run = None
+        if jobs:
+            next_job = min(jobs, key=lambda x: x.next_run_time if x.next_run_time else datetime.max)
+            next_run = next_job.next_run_time.isoformat() if next_job.next_run_time else None
+        
+        return {
+            'status': 'healthy',
+            'last_check': datetime.now().isoformat(),
+            'next_post': next_run,
+            'active_jobs': len(jobs)
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e)
+        }, 500
+
+# Global scheduler instance
+scheduler = BackgroundScheduler()
+
+def shutdown_scheduler():
+    """Shut down the scheduler gracefully"""
+    if scheduler.running:
+        scheduler.shutdown()
+        print("🛑 Scheduler shut down gracefully")
 
 if __name__ == "__main__":
-    scheduler = BackgroundScheduler()
+    # Register shutdown function
+    atexit.register(shutdown_scheduler)
     
     # Schedule posts at fixed times (5 AM, 6 AM, 7 AM, 8 AM)
     scheduler.add_job(

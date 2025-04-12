@@ -1,44 +1,14 @@
-from instagrapi import Client
-import os
-import json
-from dotenv import load_dotenv
+"""Instagram cleanup utility"""
+from utils.instagram_auth import get_client, USERNAME
+import time
 
-load_dotenv()
-
-USERNAME = os.getenv("IG_USERNAME")
-PASSWORD = os.getenv("IG_PASSWORD")
-SESSION_FILE = "creds/session.json"
-
-def get_client():
-    cl = Client()
-
-    if os.path.exists(SESSION_FILE):
-        try:
-            print("🔐 Loading saved session...")
-            with open(SESSION_FILE, "r") as f:
-                session = json.load(f)
-            cl.set_settings(session)
-            cl.get_timeline_feed()  # checks if session is still valid
-            print("✅ Session is valid.")
-            return cl
-        except Exception as e:
-            print("⚠️ Session invalid, re-login required:", e)
-
-    try:
-        cl.login(USERNAME, PASSWORD)
-        print("🔓 Logged in successfully.")
-        session = cl.get_settings()
-        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
-        with open(SESSION_FILE, "w") as f:
-            json.dump(session, f)
-        print("💾 New session saved.")
-    except Exception as e:
-        print("❌ Login failed:", e)
-        raise
-
-    return cl
-
-def delete_all_except_first():
+def delete_all_except_first(max_retries=3, retry_delay=5):
+    """Delete all posts except the first one
+    
+    Args:
+        max_retries (int): Maximum number of retries for failed operations
+        retry_delay (int): Delay in seconds between retries
+    """
     cl = get_client()
     user_id = cl.user_id_from_username(USERNAME)
     medias = cl.user_medias(user_id, amount=50)
@@ -49,11 +19,20 @@ def delete_all_except_first():
         if i == 0:
             print(f"✅ Keeping first post: {media.pk}")
             continue
-        try:
-            cl.media_delete(media.pk)
-            print(f"🗑️ Deleted post {i+1}: {media.pk}")
-        except Exception as e:
-            print(f"❌ Error deleting post {i+1}: {e}")
+            
+        retries = 0
+        while retries < max_retries:
+            try:
+                cl.media_delete(media.pk)
+                print(f"🗑️ Deleted post {i+1}: {media.pk}")
+                break
+            except Exception as e:
+                retries += 1
+                if retries == max_retries:
+                    print(f"❌ Failed to delete post {i+1} after {max_retries} attempts: {e}")
+                else:
+                    print(f"⚠️ Error deleting post {i+1} (attempt {retries}/{max_retries}): {e}")
+                    time.sleep(retry_delay)
 
 if __name__ == "__main__":
     delete_all_except_first()
