@@ -1,8 +1,10 @@
 """Instagram authentication utilities"""
 from instagrapi import Client
+from instagrapi.mixins.challenge import ChallengeChoice
 import os
 import json
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -15,6 +17,27 @@ def validate_credentials():
     if not USERNAME or not PASSWORD:
         raise ValueError("Instagram credentials (IG_USERNAME, IG_PASSWORD) are not set in environment variables")
 
+def handle_challenge(client):
+    """Handle Instagram verification challenge"""
+    try:
+        print("📱 Challenge required. Sending verification code...")
+        challenge_type = client.last_json.get("step_name", "")
+        
+        if challenge_type == "verify_email":
+            client.challenge_send_code(ChallengeChoice.EMAIL)
+            print("✉️ Verification code sent to your email.")
+        else:
+            client.challenge_send_code(ChallengeChoice.SMS)
+            print("📱 Verification code sent to your phone.")
+            
+        code = input("Enter the verification code: ")
+        client.challenge_code(code)
+        print("✅ Challenge completed successfully!")
+        return True
+    except Exception as e:
+        print(f"❌ Challenge failed: {e}")
+        return False
+
 def get_client(force_login=False):
     """Get an authenticated Instagram client
     
@@ -26,6 +49,8 @@ def get_client(force_login=False):
     """
     validate_credentials()
     cl = Client()
+    cl.delay_range = [2, 5]  # Add delay between requests
+    cl.handle_challenge = handle_challenge  # Set challenge handler
 
     if not force_login and os.path.exists(SESSION_FILE):
         try:
