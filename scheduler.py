@@ -5,6 +5,9 @@ from news_fetcher import get_top_headlines, NewsHistory
 from slide_generator import generate_all_slides
 from insta_poster import post_carousel
 import os
+from flask import Flask
+
+app = Flask(__name__)
 
 def clear_history():
     """Clear news history daily at midnight"""
@@ -138,6 +141,16 @@ def update_linktree(headlines):
     except Exception as e:
         print(f"❌ Error updating Linktree: {e}")
 
+@app.route('/health')
+def health_check():
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+    return {
+        'status': 'healthy',
+        'last_check': datetime.now().isoformat(),
+        'next_post': scheduler.get_jobs()[0].next_run_time.isoformat() if scheduler.get_jobs() else None
+    }
+
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
     
@@ -167,9 +180,5 @@ if __name__ == "__main__":
         next_run = scheduler.get_job('post_news').next_run_time
         print(f"📅 Next post scheduled at: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
     
-    try:
-        # Keep the script running
-        while True:
-            pass
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
