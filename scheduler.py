@@ -14,7 +14,7 @@ from functools import wraps
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')  # For session management
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 
 # Global scheduler instance
 scheduler = BackgroundScheduler()
@@ -131,4 +131,4 @@ if __name__ == "__main__":
     
     # Run Flask app
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port)
