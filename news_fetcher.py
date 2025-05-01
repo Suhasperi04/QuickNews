@@ -1,7 +1,9 @@
 import os
+from gnews import GNews
 from dotenv import load_dotenv
+from utils.news_history import NewsHistory
 import json
-import requests
+import random
 from datetime import datetime, timedelta
 
 load_dotenv()
@@ -63,80 +65,158 @@ def is_safe_news(title):
     title_lower = title.lower()
     return not any(word in title_lower for word in sensitive)
 
-def get_category(title):
-    """Determine category based on title"""
-    categories = {
-        "business": ["business", "market", "economy", "stock"],
-        "technology": ["tech", "technology", "gadget", "software"],
-        "sports": ["sports", "cricket", "football", "tennis"],
-        "entertainment": ["entertainment", "movie", "music", "celebrity"]
-    }
-    for category, keywords in categories.items():
-        for keyword in keywords:
-            if keyword in title.lower():
-                return category
-    return "general"
-
-def get_top_headlines():
-    """Fetch top headlines using NewsAPI"""
-    api_key = os.getenv('NEWS_API_KEY')
-    if not api_key:
-        raise ValueError("NEWS_API_KEY environment variable is not set")
-
-    url = 'https://newsapi.org/v2/top-headlines'
-    
-    params = {
-        'country': 'in',
-        'apiKey': api_key,
-        'pageSize': 10,
-        'language': 'en'
-    }
-    
+def get_news_by_category(google_news, category, count=5):
     try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        news_data = response.json()
+        if category == "trending":
+            news = google_news.get_top_news()
+        elif category == "india":
+            news = google_news.get_news("India")
+        else:
+            news = google_news.get_news_by_topic(category)
         
-        # Load existing history
-        history_file = 'news_history.json'
-        history = []
-        try:
-            if os.path.exists(history_file):
-                with open(history_file, 'r') as f:
-                    history = json.load(f)
-                if not isinstance(history, list):
-                    print("Warning: Corrupted history file, starting fresh")
-                    history = []
-        except json.JSONDecodeError:
-            print("Warning: Corrupted history file, starting fresh")
-            history = []
+        headlines_with_urls = []
+        seen_titles = set()
         
-        # Process articles
-        processed_news = []
-        for article in news_data.get('articles', []):
+        def add_article(article):
             title = clean_title(article.get('title', ''))
-            if not title or title in [h['title'] for h in history]:
+            if not title:  # Skip incomplete titles
+                return False
+                
+            if (title not in seen_titles and 
+                is_safe_news(title) and 
+                not NewsHistory().is_duplicate(title)):
+                headlines_with_urls.append({
+                    'title': title,
+                    'url': article.get('url', ''),
+                    'category': category
+                })
+                seen_titles.add(title)
+                NewsHistory().add_headline(title)
+                print(f"✅ Added ({category}): {title}")
+                return True
+            else:
+                print(f"⚠️ Skipped ({category}): {title}")
+                return False
+
+        for article in news:
+            title = article.get('title', '')
+            if not title:
                 continue
                 
-            news_item = {
-                'title': title,
-                'description': article.get('description', ''),
-                'url': article.get('url', ''),
-                'category': get_category(title),
-                'timestamp': datetime.now().isoformat()
-            }
-            processed_news.append(news_item)
-            history.append(news_item)
-        
-        # Save updated history
-        with open(history_file, 'w') as f:
-            json.dump(history[-100:], f)  # Keep last 100 articles
+            title = clean_title(title)
             
-        return processed_news[:10]  # Return top 10 articles
-        
+            if len(headlines_with_urls) >= count:
+                break
+            add_article(article)
+                
+        return headlines_with_urls
     except Exception as e:
-        print(f"❌ Error fetching news: {e}")
+        print(f"❌ Error fetching {category} news: {str(e)}")
         return []
+
+def get_top_headlines():
+    news_history = NewsHistory()
+    google_news = GNews(language='en', country='IN', max_results=30)  # Increased max results
+    
+    # Categories to fetch news from with target counts
+    categories = [
+        ('trending', 3),
+        ('india', 2),
+        ('business', 2),
+        ('technology', 1),
+        ('sports', 1),
+        ('entertainment', 1)
+    ]
+    backup_categories = ['world', 'science', 'health']
+    
+    headlines_with_urls = []
+    seen_titles = set()
+    target_count = 10  # Need 10 news items + 1 title slide = 11 total
+    
+    def add_article(article, category):
+        title = clean_title(article.get('title', ''))
+        if not title:  # Skip incomplete titles
+            return False
+            
+        if title not in seen_titles and is_safe_news(title) and not news_history.is_duplicate(title):
+            # Extract full URL and description
+            url = article.get('url', '')
+            if not url.startswith('http'):
+                return False
+                
+            description = article.get('description', '')
+            if description:
+                description = clean_title(description)  # Clean description too
+                
+            headlines_with_urls.append({
+                'title': title,
+                'url': url,
+                'category': category,
+                'description': description
+            })
+            seen_titles.add(title)
+            # Add to history to avoid duplicates within the batch
+            news_history.add_headline(title)
+            print(f"✅ Added ({category}): {title}")
+            return True
+        else:
+            print(f"⚠️ Skipped ({category}): {title}")
+            return False
+
+    # Fetch news from primary categories
+    for category, target in categories:
+        print(f"\n📰 Fetching {category} news...")
+        try:
+            if category == "trending":
+                articles = google_news.get_top_news()
+            elif category == "india":
+                articles = google_news.get_news("India")
+            else:
+                articles = google_news.get_news_by_topic(category)
+            
+            # Try to get the target number for this category
+            added = 0
+            for article in articles:
+                if added >= target:
+                    break
+                if add_article(article, category):
+                    added += 1
+                if len(headlines_with_urls) >= target_count:
+                    break
+                    
+            if len(headlines_with_urls) >= target_count:
+                break
+                
+        except Exception as e:
+            print(f"❌ Error fetching {category} news: {str(e)}")
+            continue
+
+    # If we don't have enough headlines, try backup categories
+    if len(headlines_with_urls) < target_count:
+        remaining = target_count - len(headlines_with_urls)
+        for category in backup_categories:
+            if len(headlines_with_urls) >= target_count:
+                break
+                
+            print(f"\n📰 Fetching {category} news (backup)...")
+            try:
+                articles = google_news.get_news_by_topic(category)
+                added = 0
+                for article in articles:
+                    if added >= remaining:
+                        break
+                    if add_article(article, category):
+                        added += 1
+                    if len(headlines_with_urls) >= target_count:
+                        break
+            except Exception as e:
+                print(f"❌ Error fetching {category} news: {str(e)}")
+                continue
+
+    print(f"\n📰 Final headlines count: {len(headlines_with_urls)}")
+    return headlines_with_urls
+
+# NewsHistory class is imported from utils.news_history
 
 if __name__ == "__main__":
     headlines = get_top_headlines()
